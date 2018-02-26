@@ -25,6 +25,20 @@ def convertToOneHot(wordIdsArrays, vocabularySize):
         i += 1
     return res
 
+class PredictionResult:
+    def __init__(self):
+        self.status = -1
+        self.errorMessage = "Не достаточно данных"
+    status = None # 0 - all ok, -1 - error
+    topic = None
+    weight = None
+    errorMessage = None
+    
+class Topic:
+    topicId = None
+    topicName = None
+    
+    
 class Predictor:
     def __init__(self):
         temp = None
@@ -38,8 +52,19 @@ class Predictor:
         self.__vocab = learn.preprocessing.VocabularyProcessor.restore("./vocab")
         
         self.__model = load_model("model")
-    def predict(self, documents, resultAsClassNumber=True):
+    def predict(self, documents):
         
+        if type(documents) != list:
+            raise ValueError("Input value 'documents' is not a list")
+            
+        docNum = len(documents)
+        appropriateString = [False] * docNum
+        i = 0
+        while i < docNum:
+            if len(documents[i]) > 2:
+                appropriateString[i] = True
+            i += 1
+            
         X = self.__textProcessor.convertSequenceOfDocuments(documents)
         X = [" ".join(i) for i in X]
 
@@ -50,12 +75,24 @@ class Predictor:
         prediction = self.__model.predict(X)
         
         predictedClassNumbers = prediction.argmax(axis=1)
+        weights = [prediction[x][predictedClassNumbers[x]] for x in range(docNum)]
+        predictedThematicTexts = [self.__idThematics[x] for x in predictedClassNumbers]
         
-        if resultAsClassNumber == True:
-            return predictedClassNumbers
-        else:
-            res = np.array([self.__idThematics[x] for x in predictedClassNumbers])
-            return res
+        res = [PredictionResult() for x in range(docNum)]
+        
+        i = 0
+        while i < docNum:
+            if appropriateString[i] == True:
+                res[i].status = 0
+                topic = Topic()
+                topic.topicId = predictedClassNumbers[i]
+                topic.topicName = predictedThematicTexts[i]
+                res[i].topic = topic
+                res[i].weight = weights[i]
+                res[i].errorMessage = ""
+            i += 1
+            
+        return res
         
     def getIdthematics(self):
         return self.__idThematics
